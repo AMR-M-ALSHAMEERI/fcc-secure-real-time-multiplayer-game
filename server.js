@@ -7,59 +7,61 @@ const helmet = require('helmet');
 const nocache = require('nocache');
 
 const app = express();
+
+// 1. DISABLE ETAGS (Critical for Test 18: No-Cache)
 app.disable('etag');
 
-// Security headers at the very top
+// 2. PRIMARY SECURITY HEADERS (Tests 16, 17, 18, 19)
+// These MUST be defined before any routes or static files.
 app.use((req, res, next) => {
-  res.set({
-    'X-Powered-By': 'PHP 7.4.3',
-    'X-Content-Type-Options': 'nosniff',
-    'X-XSS-Protection': '1; mode=block',
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    Pragma: 'no-cache',
-    Expires: '0',
-    'Surrogate-Control': 'no-store'
-  });
+  res.setHeader('X-Content-Type-Options', 'nosniff'); // Test 16
+  res.setHeader('X-XSS-Protection', '1; mode=block'); // Test 17
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); // Test 18
+  res.setHeader('Pragma', 'no-cache'); // Test 18
+  res.setHeader('Expires', '0'); // Test 18
+  res.setHeader('X-Powered-By', 'PHP 7.4.3'); // Test 19
   next();
 });
 
-// Helmet stack after explicit overrides
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(helmet.hidePoweredBy({ setTo: 'PHP 7.4.3' }));
-app.use(helmet.noSniff());
-app.use(helmet.xssFilter());
+// 3. HELMET & NOCACHE MIDDLEWARE
+app.use(helmet({
+  hidePoweredBy: false, // Handled manually above for better reliability
+  noSniff: true,
+  xssFilter: true,
+  contentSecurityPolicy: false // Disable if it interferes with Socket.io loading
+}));
 app.use(nocache());
 
-app.use('/public', express.static(process.cwd() + '/public', { etag: false, lastModified: false }));
-app.use('/assets', express.static(process.cwd() + '/assets', { etag: false, lastModified: false }));
+// 4. STATIC FILES AND PARSERS
+app.use('/public', express.static(process.cwd() + '/public'));
+app.use('/assets', express.static(process.cwd() + '/assets'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cors({origin: '*'})); 
+app.use(cors({ origin: '*' })); 
 
+// 5. ROUTES
 app.route('/').get(function (req, res) {
   res.sendFile(process.cwd() + '/views/index.html');
 }); 
 
+// 6. SERVER INITIALIZATION
 const portNum = process.env.PORT || 3000;
 const server = app.listen(portNum, () => {
   console.log(`Listening on port ${portNum}`);
 });
 
-// 2. SOCKET.IO SERVER-SIDE LOGIC
+// 7. SOCKET.IO LOGIC
 const io = socket(server);
 
-// Ensure Socket.io responses also carry the security headers
+// Ensure Socket.io handshakes also carry the security headers
 io.engine.on('headers', (headers) => {
   headers['X-Powered-By'] = 'PHP 7.4.3';
   headers['X-Content-Type-Options'] = 'nosniff';
-  headers['X-XSS-Protection'] = '1; mode=block';
-  headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate';
-  headers['Pragma'] = 'no-cache';
-  headers['Expires'] = '0';
-  headers['Surrogate-Control'] = 'no-store';
 });
+
 let connectedPlayers = [];
 
+// Initialize a single coin
 let currentCoin = {
   x: Math.floor(Math.random() * 500) + 50,
   y: Math.floor(Math.random() * 300) + 50,
@@ -71,6 +73,7 @@ io.on('connection', (inst) => {
   console.log('Player connected:', inst.id);
 
   inst.on('init-player', (newPlayerData = {}) => {
+    // Prevent duplicates if already connected
     if (connectedPlayers.some(p => p.id === inst.id)) {
       inst.emit('init', { id: inst.id, players: connectedPlayers, coin: currentCoin });
       return;
@@ -92,6 +95,7 @@ io.on('connection', (inst) => {
     const index = connectedPlayers.findIndex(p => p.id === playerData.id);
     if (index === -1) return;
 
+    // Maintain the server-assigned ID
     const updated = { ...connectedPlayers[index], ...playerData, id: connectedPlayers[index].id };
     connectedPlayers[index] = updated;
     inst.broadcast.emit('update-player', updated);
@@ -103,12 +107,14 @@ io.on('connection', (inst) => {
         if (p.id === playerId) p.score += currentCoin.value;
       });
 
+      // Win Condition Check (10 Points)
       const winner = connectedPlayers.find(p => p.id === playerId && p.score >= 10);
       if (winner) {
         io.emit('game-over', { winnerId: winner.id });
         return;
       }
 
+      // Generate New Coin
       currentCoin = {
         x: Math.floor(Math.random() * 500) + 50,
         y: Math.floor(Math.random() * 300) + 50,
