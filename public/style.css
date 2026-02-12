@@ -7,6 +7,9 @@ code {
 }
 
 canvas {
+  background-color: #eee;
+  border: 4px solid #555;
+  display: block;
   margin: auto;
 }
 
