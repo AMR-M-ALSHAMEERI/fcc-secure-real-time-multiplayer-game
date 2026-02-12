@@ -8,30 +8,27 @@ const nocache = require('nocache');
 
 const app = express();
 app.disable('etag');
-app.set('etag', false);
 
-// Apply a comprehensive Helmet stack first
-app.use(helmet({ contentSecurityPolicy: false }));
-
-// 1. SECURITY MIDDLEWARE (Required for FCC)
-app.use(helmet.hidePoweredBy({ setTo: 'PHP 7.4.3' }));
-app.use(helmet.noSniff());
-app.use(helmet.xssFilter());
-app.use(nocache());
-
-// Explicit headers to satisfy FCC security tests
+// Security headers at the very top
 app.use((req, res, next) => {
   res.set({
     'X-Powered-By': 'PHP 7.4.3',
     'X-Content-Type-Options': 'nosniff',
     'X-XSS-Protection': '1; mode=block',
-    'Surrogate-Control': 'no-store',
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
     Pragma: 'no-cache',
-    Expires: '0'
+    Expires: '0',
+    'Surrogate-Control': 'no-store'
   });
   next();
 });
+
+// Helmet stack after explicit overrides
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet.hidePoweredBy({ setTo: 'PHP 7.4.3' }));
+app.use(helmet.noSniff());
+app.use(helmet.xssFilter());
+app.use(nocache());
 
 app.use('/public', express.static(process.cwd() + '/public', { etag: false, lastModified: false }));
 app.use('/assets', express.static(process.cwd() + '/assets', { etag: false, lastModified: false }));
@@ -56,10 +53,10 @@ io.engine.on('headers', (headers) => {
   headers['X-Powered-By'] = 'PHP 7.4.3';
   headers['X-Content-Type-Options'] = 'nosniff';
   headers['X-XSS-Protection'] = '1; mode=block';
-  headers['Surrogate-Control'] = 'no-store';
   headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate';
   headers['Pragma'] = 'no-cache';
   headers['Expires'] = '0';
+  headers['Surrogate-Control'] = 'no-store';
 });
 let connectedPlayers = [];
 
