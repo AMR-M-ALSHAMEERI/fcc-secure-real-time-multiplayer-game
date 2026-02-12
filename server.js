@@ -7,6 +7,10 @@ const helmet = require('helmet');
 const nocache = require('nocache');
 
 const app = express();
+app.disable('etag');
+
+// Apply a comprehensive Helmet stack first
+app.use(helmet({ contentSecurityPolicy: false }));
 
 // 1. SECURITY MIDDLEWARE (Required for FCC)
 app.use(helmet.hidePoweredBy({ setTo: 'PHP 7.4.3' }));
@@ -45,6 +49,17 @@ const server = app.listen(portNum, () => {
 
 // 2. SOCKET.IO SERVER-SIDE LOGIC
 const io = socket(server);
+
+// Ensure Socket.io responses also carry the security headers
+io.engine.on('headers', (headers) => {
+  headers['X-Powered-By'] = 'PHP 7.4.3';
+  headers['X-Content-Type-Options'] = 'nosniff';
+  headers['X-XSS-Protection'] = '1; mode=block';
+  headers['Surrogate-Control'] = 'no-store';
+  headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate';
+  headers['Pragma'] = 'no-cache';
+  headers['Expires'] = '0';
+});
 let connectedPlayers = [];
 
 let currentCoin = {
