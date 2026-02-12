@@ -8,6 +8,7 @@ const nocache = require('nocache');
 
 const app = express();
 app.disable('etag');
+app.set('etag', false);
 
 // Apply a comprehensive Helmet stack first
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -32,8 +33,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/public', express.static(process.cwd() + '/public'));
-app.use('/assets', express.static(process.cwd() + '/assets'));
+app.use('/public', express.static(process.cwd() + '/public', { etag: false, lastModified: false }));
+app.use('/assets', express.static(process.cwd() + '/assets', { etag: false, lastModified: false }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors({origin: '*'})); 
