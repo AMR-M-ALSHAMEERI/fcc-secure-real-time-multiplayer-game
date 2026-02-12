@@ -14,6 +14,20 @@ app.use(helmet.noSniff());
 app.use(helmet.xssFilter());
 app.use(nocache());
 
+// Explicit headers to satisfy FCC security tests
+app.use((req, res, next) => {
+  res.set({
+    'X-Powered-By': 'PHP 7.4.3',
+    'X-Content-Type-Options': 'nosniff',
+    'X-XSS-Protection': '1; mode=block',
+    'Surrogate-Control': 'no-store',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0'
+  });
+  next();
+});
+
 app.use('/public', express.static(process.cwd() + '/public'));
 app.use('/assets', express.static(process.cwd() + '/assets'));
 app.use(bodyParser.json());
